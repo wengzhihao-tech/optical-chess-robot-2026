@@ -1,0 +1,37 @@
+# 编译产物与中间件（不入库，用 Release 或网盘分发）
+build/
+build-*/
+Debug/
+Release/
+Objects/
+Listings/
+Output/
+RTE/
+*.o
+*.obj
+*.d
+*.dep
+*.crf
+*.axf
+*.elf
+*.bin
+*.hex
+*.map
+*.lst
+*.uvguix.*
+
+# PC 端自测产物（lib/stm32-chesscar-lib/test 内由 make 生成）
+/selftest
+/selftest_match
+/selftest_ramp
+tests/selftest
+tests/selftest_match
+tests/selftest_ramp
+
+# 编辑器与系统文件
+.vscode/
+.idea/
+*.swp
+Thumbs.db
+desktop.ini
+.DS_Store
