@@ -75,13 +75,39 @@ make clean        # 删除自测可执行文件
 
 `lib/stm32-chesscar-lib/README.md` 记录的期望结果：14 个编译单元零警告零错误，160 项断言全部通过（基础 38 + 赛题专用 100 + 运动斜坡 22），含 CRC16-CCITT-FALSE 标准向量 `"123456789" → 0x29B1`。
 
-### 整车固件构建（待落地，非可复现步骤）
+### 整车固件构建（构建骨架已落地，尚不可完整构建）
 
-`stm32-chesscar-lib` 只提供平台无关的 `common/` 算法层、HAL 适配的 `stm32/` 层与 `examples/app_chesscar.c`：仓库内没有顶层 Makefile/CMakeLists、没有 `.ioc`、没有 startup 与链接脚本，所以整车固件目前没有可复现的编译命令。落地路径是在 `firmware/` 下用 STM32CubeMX 建 STM32F103 工程（PWM、编码器模式定时器、I2C1、USART1+DMA、ADC1+DMA），把 `lib/stm32-chesscar-lib/common` 与 `lib/stm32-chesscar-lib/stm32` 加入 include 路径，按 `stm32/bsp_config.h` 填引脚，用 `examples/app_chesscar.c` 组织主循环与中断回调。
+`stm32-chesscar-lib` 只提供平台无关的 `common/` 算法层、HAL 适配的 `stm32/` 层与 `examples/app_chesscar.c`。整车固件的构建骨架已经落在 `firmware/`：手写顶层 `Makefile`、`startup_stm32f103xb.s`、`STM32F103C8TX_FLASH.ld`，以及 `firmware/README.md` 里的目录与文件清单。`chesscar.ioc` 与 CubeMX 生成的 `Core/`、`Drivers/` 还没落地，所以整车固件目前仍没有可复现的编译命令。目标平台是 STM32F103C8T6（PWM、编码器模式定时器、I2C1、USART1+DMA、ADC1+DMA），`lib/stm32-chesscar-lib/common` 与 `lib/stm32-chesscar-lib/stm32` 按路径进构建，`examples/app_chesscar.c` 组织主循环与中断回调。
 
-### 烧写（待补）
+**引脚方案仍待硬件确认**：仓库里不预先固化任何引脚，也不修改子库 `stm32/bsp_config.h` 的通道宏；TIM1 两路 PWM 的引脚、两个编码器定时器的重映射、ADC1 八路通道与探头 OUT1~OUT8 的对应关系、I2C1 与 USART1 的引脚取舍都要上板核对后再定。生成与后续步骤见 `firmware/README.md` 的“后续批次”一节。
 
-库内没有任何烧写/下载命令，也没有约定产物名，其 README 明确写着硬件层尚未在实物 STM32 上验证。这一节等 `firmware/` 工程落地后再补具体命令，暂为占位。
+### 烧写（草案，待实物验证）
+
+库内原本没有任何烧写/下载命令，也没有约定产物名，其 README 明确写着硬件层尚未在实物 STM32 上验证。下面这些产物名与命令随 `firmware/` 构建骨架一并落地，属于**待实物验证的草案**，尚未在实机上跑过；完整说明见 `firmware/README.md`。
+
+产物（目标名 `chesscar`，输出到 `firmware/build/`，已被 `.gitignore` 排除）：
+
+- `chesscar.elf` —— 带调试信息，GDB / OpenOCD 用
+- `chesscar.hex` —— Intel HEX，命令行与 GUI 工具首选
+- `chesscar.bin` —— 裸二进制，需显式指定起始地址 `0x08000000`
+- `chesscar.map` —— 链接映射，复核栈/堆与 `--gc-sections` 效果
+
+烧写命令（三条路线选一，均为草案）：
+
+```bash
+# 路线 1：ST-Link + STM32CubeProgrammer CLI（本机是否已装未核实）
+STM32_Programmer_CLI -c port=SWD -w build/chesscar.hex -v -rst
+
+# 路线 2：OpenOCD + ST-Link
+openocd -f interface/stlink.cfg -f target/stm32f1x.cfg \
+        -c "program build/chesscar.elf verify reset exit"
+
+# 路线 3：J-Link（本机已装 J-Link V698e / V870 / V888）
+JLinkExe -device STM32F103C8 -if SWD -speed 4000 -autoconnect 1
+#   命令模式下：loadfile build/chesscar.hex   →   r   →   go   →   qc
+```
+
+下载后至少验四项：烧写校验（`-v` 或 OpenOCD 的 `verify`）、OLED 是否按 100 ms 节拍刷新、115200 8N1 下协议帧计数与 CRC 错误计数是否增长、串口打印 8 路原始 ADC 值确认 Rank 与探头编号的对应关系。后两项是子库点名的实物验证项。
 
 ### 已知缺口
 
